@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1,user-scalable=no"/>
+    <title>Simple Map</title>
+   <link rel="stylesheet" href="https://js.arcgis.com/3.16/esri/css/esri.css">
+   <!--<link rel="stylesheet" href="http://192.168.0.106:6088/3.16/esri/css/esri.css">-->
+   
+    <style>
+      html, body, #map {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background-color: #FFF;
+        overflow: hidden;
+        font-family: "Trebuchet MS";
+      }
+      #currentxy{
+        position: absolute;
+        bottom:0px;
+        right:70px;
+        z-index:99999;
+        }
+    </style>
+    <script src="http://js.arcgis.com/3.16/init.js"></script>
+    <!--<script src="http://192.168.0.106:6088/3.16/init.js"></script>-->
+    <script>
+        dojo.require("esri/map");
+        dojo.require("dojo/on");
+        dojo.require("dojo/_base/lang");
+        dojo.require("dojo/json");
+        dojo.require("esri/layers/ArcGISTiledMapServiceLayer");
+        dojo.require("dojo/json");
+        dojo.require("esri/layers/GraphicsLayer");
+        dojo.require("esri/symbols/PictureMarkerSymbol");
+        dojo.require("esri/geometry/Point");
+        dojo.require("esri/InfoTemplate");
+        dojo.require("esri/layers/ArcGISTiledMapServiceLayer");
+        dojo.require("esri/layers/ArcGISImageServiceLayer");
+        
+        var map;
+        var polygonLayer;
+        var polySymbol;
+        var pointLayer;
+        var pointSymbol;
+        var TestPointInfo='[{"id":1,"name":"卡口1","X":13000000,"Y":4406785.18410603,"url":"http://f.hiphotos.baidu.com/image/h%3D200/sign=d9c2d17b1a950a7b6a3549c43ad0625c/14ce36d3d539b600af3985faee50352ac75cb78c.jpg"},{"id":1,"name":"卡口2","X":13500000,"Y":4406785.18510603,"url":"http://b.hiphotos.baidu.com/image/h%3D300/sign=c0b5f5edf103738dc14a0a22831ab073/08f790529822720e754768b77ccb0a46f31fabf6.jpg"}]';
+        var linepoints='[[1.3041310746846747E7,4406785.18410603],[1.3110104072303407E7,4606785.18410603],[1.3050104072303407E7,4206785.18410603]]';
+        var linepoints2='[[1.4041310746846747E7,4406785.18410603],[1.3120104072303407E7,4606785.18410603],[1.3150104072303407E7,4206785.18410603]]';
+        var lineSymbol;
+        
+        //地图初始化
+        function InitMap() {
+            map = new esri.Map("map", {
+                //center: [1.31,4458463.737562848],
+                zoom: 12,
+                minZoom: 2,
+                logo:false
+            });
+            
+            map.spatialReference=new esri.SpatialReference({ wkid: 3857 });
+
+            //var tiled = new esri.layers.ArcGISTiledMapServiceLayer("http://112.230.197.82:6080/arcgis/rest/services/zqyx/ImageServer"); //背景地图地址 ArcGISTiledMapServiceLayer
+            var tiled = new esri.layers.ArcGISTiledMapServiceLayer("http://112.230.197.82:6080/arcgis/rest/services/zqyx/ImageServer");
+            map.addLayer(tiled);
+            
+            var layer = new esri.layers.ArcGISDynamicMapServiceLayer("http://112.230.197.82:6080/arcgis/rest/services/yxsl/MapServer"); //ArcGISDynamicMapServiceLayer
+            map.addLayer(layer);
+            
+            http://112.230.197.82:6080/arcgis/rest/services/yxsl/MapServer?f=jsapi
+            
+            polygonLayer= new esri.layers.GraphicsLayer();
+            pointLayer= new esri.layers.GraphicsLayer();
+            
+            var infoTemplate = new esri.InfoTemplate();
+            infoTemplate.setTitle("<b>${name}</b>");
+            infoTemplate.setContent("<span>编号:${id}</span></br><span>名称:${name}</span></br><img src=\"${url}\"  alt=\"${name}\" />");
+            
+            pointLayer.setInfoTemplate(infoTemplate);
+            
+            map.addLayer(polygonLayer);
+            map.addLayer(pointLayer);
+            
+            pointSymbol =new esri.symbol.PictureMarkerSymbol("BluePin1LargeB.png", 32, 32);//.setOffset(0, 15);
+            polySymbol = new esri.symbol.SimpleFillSymbol(  
+                esri.symbol.SimpleFillSymbol.STYLE_SOLID,   
+                new esri.symbol.SimpleLineSymbol(  
+                    esri.symbol.SimpleLineSymbol.STYLE_DASHDOT,   
+                    new dojo.Color([0,0,255]),   
+                    2  
+                ),   
+                new dojo.Color([255,0,255,0.25])
+                );  
+                
+            require(["esri/symbols/SimpleLineSymbol"], function (SimpleLineSymbol) {
+                lineSymbol =new SimpleLineSymbol(
+                    SimpleLineSymbol.STYLE_SOLID,
+                    new esri.Color('#050'), 
+                    5
+                );
+            });
+            
+            //加载测试点
+            PointShow(TestPointInfo);
+            setPolyline(linepoints); //加载第一条线
+            setPolyline(linepoints2); //加载第二条先
+            
+            map.on("mouse-move", mapMouseMove);
+            function mapMouseMove(mapEvent) {
+                try {
+                    var pt = mapEvent.mapPoint;
+                    require(["dojo/dom"], function (dom) {
+                        dom.byId("currentxy").innerText = "X:" + pt.x.toFixed(4) + " Y:" + pt.y.toFixed(4);
+                    });
+                }
+                catch (err)
+                { }
+            }
+        }
+        
+        dojo.addOnLoad(InitMap);
+        
+        
+        function setPolyline(lps){  
+             
+            require(["esri/geometry/Polyline"], function (Polyline) {
+                var polyline = new Polyline(map.spatialReference);  
+                polyline.addPath(eval('('+lps+')'));  
+                var graphic = new esri.Graphic(polyline,lineSymbol);  
+                polygonLayer.add(graphic); 
+            });
+        } 
+      
+        function setPolygon(){  
+             
+            require(["esri/geometry/Polygon"], function (Polygon) {
+                var polygon = new Polygon(map.spatialReference);  
+                polygon.addRing([[1.3041310746846747E7,4406785.18410603],[1.3110104072303407E7,4606785.18410603],[1.3050104072303407E7,4206785.18410603],[1.3041310746846747E7,4406785.18410603]]);  
+                var graphic = new esri.Graphic(polygon,polySymbol);  
+                polygonLayer.add(graphic); 
+            });
+        } 
+        
+        function PointShow(PointInfo)
+        {
+            var mypoints=eval('(' + PointInfo + ')');
+            //map.infoWindow.resize(300,200);
+            require(["esri/geometry/Point"], function (Point) {
+                for(var i=0;i<mypoints.length;i++){  
+                    var pt=new Point(mypoints[i].X,mypoints[i].Y,map.spatialReference);  
+                    var gpoint = new esri.Graphic(pt,pointSymbol,mypoints[i]); // items[i]//new esri.symbols.PictureMarkerSymbol("img/rosette.png", 16, 16)
+                    pointLayer.add(gpoint);
+                    
+                    //文本标注
+                    var font = new esri.symbol.Font();
+                    font.setSize("10pt");
+                    font.setFamily("微软雅黑");
+                    
+                    var textSymbol = new esri.symbol.TextSymbol(mypoints[i].name);  //strCarNo
+                    textSymbol.setColor(new esri.Color('#050'));
+                    textSymbol.setFont(font);
+                    textSymbol.setOffset(30,-6);
+                    var graphicText = esri.Graphic(pt, textSymbol); // ,null
+                    pointLayer.add(graphicText);
+
+                }
+                
+            });
+            
+            //pointLayer.redraw();
+        }
+        
+        
+    </script>
+  </head>
+
+
+  <body>
+    <div id="map"><div id="currentxy" /></div>
+  </body>
+</html>
